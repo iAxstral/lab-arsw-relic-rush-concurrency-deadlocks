@@ -4,7 +4,7 @@
 
 | Student | ID | GitHub |
 |---|---|---|
-| | | |
+|Tomas Olaya Diaz | 1000102228 | iAxstral |
 | | | |
 | | | |
 
