@@ -13,10 +13,12 @@ public final class LockPair {
     private LockPair() {
     }
 
-    public static void withBoth(ForgeStation first, ForgeStation second, Runnable action) {
+    public static void withBoth(ForgeStation a, ForgeStation b, Runnable action) {
         // TODO LAB 3: This acquisition strategy can create circular wait.
         // Fix it using a deterministic ordering strategy (or justify another
         // deadlock-prevention approach) while preserving fine-grained locking.
+        ForgeStation first = a.id() < b.id() ? a : b;
+        ForgeStation second = a.id() < b.id() ? b : a;
         synchronized (first) {
             // This small delay makes the deadlock easier to reproduce in the starter.
             sleepQuietly(2);
