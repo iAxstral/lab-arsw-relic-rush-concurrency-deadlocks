@@ -96,7 +96,7 @@ How did you preserve concurrency between independent forge operations?
 
 > El orden global solo afecta a los hilos que compiten por el **mismo par exacto** de estaciones. Dos jugadores que necesitan pares de estaciones completamente distintos (sin ninguna en común) nunca esperan entre sí — cada `synchronized` sigue siendo de grano fino, uno por `ForgeStation`, no un lock global para todo el juego. Se verificó que, tras el fix, `DeadlockProbe` reporta `NO DEADLOCK DETECTED within 2 seconds.` de forma consistente en 6 corridas seguidas.
 
-![alt text](image.png)
+![DeadlockProbe: 6 de 6 corridas sin deadlock](evidence/deadlockprobe-6of6-nodeadlock.png)
 
 \`\`\`text
 NO DEADLOCK DETECTED within 2 seconds.
