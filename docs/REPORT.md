@@ -14,16 +14,28 @@ Final commit: `SHA`
 
 ## 1. Baseline observations
 
-- Command(s) executed:
-- What happened?
-- Was the round invariant always preserved?
-- Did the game stop unexpectedly?
+> Scope note: the full-game baseline (deadlock behavior of `RelicRushMain` / `DeadlockProbe`) is documented by the Part III/IV owner. This entry only covers the isolated ledger probe used for Part II.
 
-Evidence:
+- Command(s) executed:
+
+```bash
+mvn -q -DskipTests clean package
+java -cp target/classes edu.eci.arsw.relicrush.app.LedgerRaceProbe 64 5000
+```
+
+- What happened? With the starter `ForgeLedger`, `expected` writes were always higher than both `totalCrafted` and `eventCount`. Every run under-counted, and the shortfall differed from run to run (non-deterministic race).
+- Was the round invariant always preserved? No. `totalCrafted != eventCount != expected` in every run.
+- Did the game stop unexpectedly? No crash/exception, just silent lost updates.
+
+Evidence (starter implementation, 3 consecutive runs, 64 workers x 5000 writes each = 320000 expected):
 
 ```text
-PASTE RELEVANT OUTPUT
+expected=320000 totalCrafted=9368  eventCount=211826 invariant=BROKEN
+expected=320000 totalCrafted=9487  eventCount=213772 invariant=BROKEN
+expected=320000 totalCrafted=10461 eventCount=210941 invariant=BROKEN
 ```
+
+`totalCrafted` lost ~97% of its increments and `eventCount` lost ~34% of its entries, which shows the two bugs manifest at very different severities: a plain `int++` is almost always clobbered under contention, while `ArrayList` occasionally survives a batch before an internal array-resize race drops or corrupts elements.
 
 ## 2. Coordination analysis
 
@@ -50,8 +62,18 @@ What memory-consistency benefit do you obtain by reading the snapshot after the 
 
 | Shared state | Problem | Invariant at risk | Solution | Why this solution? |
 |---|---|---|---|---|
-| | | | | |
-| | | | | |
+| `ForgeLedger.totalCrafted` (was `int`) | `int next = totalCrafted + 1; totalCrafted = next;` is a non-atomic read-modify-write. Concurrent adventurer threads can read the same stale value and overwrite each other's increment (lost update). | `sum of player scores == ForgeLedger.totalCrafted` | Replaced with `AtomicInteger`, updated via `incrementAndGet()` (a single CAS-based atomic operation). | `AtomicInteger` gives lock-free, wait-free atomicity for a single counter without introducing a monitor. It is strictly cheaper than `synchronized` for this specific op (no blocking, no context-switch risk) and does not couple the counter's contention to the list's contention. |
+| `ForgeLedger.events` (was `ArrayList<ForgeEvent>`) | `ArrayList` is not designed for concurrent structural modification. Concurrent `add()` calls can race on the internal array/`size` field, silently dropping elements or throwing `ArrayIndexOutOfBoundsException`/`ConcurrentModificationException`. | `ForgeLedger.totalCrafted == number of ForgeEvent entries` | Replaced with `ConcurrentLinkedQueue<ForgeEvent>`, a lock-free (Michael-Scott) concurrent queue; `add()` is safe for any number of concurrent producers. | The list is write-heavy (every craft appends once) and read-rarely (only `eventCount()`/`snapshot()`, called once per round by the coordinator, off the hot path). `ConcurrentLinkedQueue` gives O(1) lock-free `add()`, which is far cheaper under contention than `CopyOnWriteArrayList` (O(n) copy per write — unacceptable here) or `Collections.synchronizedList` (blocking monitor on every write, effectively serializing all adventurers on this one field). |
+
+Why is this preferable to synchronizing the entire game (e.g., one `synchronized` method wrapping both fields, or a lock around all of `record`)?
+
+The two invariants only require that (a) each individual field is internally consistent under concurrent access, and (b) both fields are incremented exactly once per crafted relic. They do **not** require the counter update and the list append to be atomic *with respect to each other* — nothing in the game ever reads `totalCrafted` and `events` in a way that assumes they change as a single indivisible unit mid-round; they are only compared for equality by the coordinator, and only after every adventurer has already crossed `roundEnd` (which — per Part I — is itself a memory-consistency fence). So each field can be made independently thread-safe with the cheapest tool that fits its own access pattern, instead of forcing a single global lock around `record()` that would serialize every adventurer's craft on the ledger, turning `ForgeLedger` into a bottleneck shared by every station pair in the game. `LedgerRaceProbe` stress evidence below confirms both fields stay consistent under heavy concurrent writes without any coarse locking:
+
+```text
+expected=320000  totalCrafted=320000  eventCount=320000  invariant=OK   (64 workers  x 5000 writes)
+expected=320000  totalCrafted=320000  eventCount=320000  invariant=OK   (repeated 3x)
+expected=2560000 totalCrafted=2560000 eventCount=2560000 invariant=OK   (128 workers x 20000 writes)
+```
 
 ## 4. Deadlock diagnosis
 
@@ -110,6 +132,6 @@ Discuss:
 
 ## 8. Conclusions
 
-1.
-2.
-3.
+1. The two `ForgeLedger` defects (non-atomic counter, non-thread-safe list) were reproduced deterministically with `LedgerRaceProbe` and fixed independently with `AtomicInteger` and `ConcurrentLinkedQueue`, without introducing any new lock.
+2. The round barriers (`roundStart`, `roundEnd`) were already correct; they are the mechanism that makes it safe for the coordinator to read `score`/`totalCrafted`/`eventCount` with plain field reads after each round.
+3. (Deadlock diagnosis/fix conclusion — pending Part III/IV/V owner.)
