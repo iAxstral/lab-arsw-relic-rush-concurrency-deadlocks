@@ -5,7 +5,7 @@
 **Period:** 2026-2  
 **Technology:** Java 21 - Maven - JUnit 5  
 **Suggested work mode:** teams of 2-3 students  
-**Development time:** one week  
+**Development time:** one week
 
 ---
 
