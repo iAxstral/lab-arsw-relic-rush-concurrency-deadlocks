@@ -35,4 +35,24 @@ public final class LockPair {
             Thread.currentThread().interrupt();
         }
     }
+
+    public static void withEither(ForgeStation a, ForgeStation b, Runnable action) {
+        // Fix it using a deterministic ordering strategy (or justify another
+        // deadlock-prevention approach) while preserving fine-grained locking.
+        ForgeStation first = a.id() < b.id() ? a : b;
+        ForgeStation second = a.id() < b.id() ? b : a;
+        synchronized (first) {
+            first.setBusy(true);
+            synchronized(second){
+                second.setBusy(true);
+                try {
+                    action.run();
+                } finally {
+                    first.setBusy(false);
+                    second.setBusy(false);
+                }
+            }
+            
+        }
+    }
 }

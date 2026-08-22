@@ -1,6 +1,7 @@
 package edu.eci.arsw.relicrush.game;
 
 import edu.eci.arsw.relicrush.concurrency.ForgeLedger;
+import edu.eci.arsw.relicrush.concurrency.GameControl;
 import edu.eci.arsw.relicrush.model.ForgeStation;
 
 import java.util.ArrayList;
@@ -11,6 +12,7 @@ import java.util.concurrent.CyclicBarrier;
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class GameEngine {
     private final GameConfig config;
@@ -20,6 +22,8 @@ public final class GameEngine {
     private final CyclicBarrier roundStart;
     private final CyclicBarrier roundEnd;
     private final AtomicBoolean finished = new AtomicBoolean(false);
+    private final GameControl control = new GameControl();
+    private final AtomicInteger currentRound = new AtomicInteger(0);
 
     public GameEngine(GameConfig config) {
         this.config = config;
@@ -34,7 +38,8 @@ public final class GameEngine {
                     ledger,
                     roundStart,
                     roundEnd,
-                    config.rounds()));
+                    config.rounds(),
+                    control));
         }
     }
 
@@ -43,6 +48,19 @@ public final class GameEngine {
         adventurers.forEach(Thread::start);
 
         for (int round = 1; round <= config.rounds(); round++) {
+            if (control.isStopped()) {
+                roundStart.reset();
+                roundEnd.reset();
+                break;
+            }
+            control.awaitIfPaused();
+            if (control.isStopped()) {
+                roundStart.reset();
+                roundEnd.reset();
+                break;
+            }
+            currentRound.set(round);
+
             // Scenario 2: workers wait until the coordinator starts the round.
             roundStart.await();
 
@@ -119,5 +137,29 @@ public final class GameEngine {
             result.add(new ForgeStation(i + 1, names[i % names.length] + " " + (i + 1)));
         }
         return List.copyOf(result);
+    }
+
+    public GameControl control() {
+        return control;
+    }
+
+    public List<Adventurer> adventurers() {
+        return adventurers;
+    }
+
+    public List<ForgeStation> stations() {
+        return stations;
+    }
+
+    public ForgeLedger ledger() {
+        return ledger;
+    }
+
+    public int currentRound() {
+        return currentRound.get();
+    }
+
+    public boolean isFinished() {
+        return finished.get();
     }
 }

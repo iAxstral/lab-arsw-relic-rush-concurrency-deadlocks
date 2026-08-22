@@ -13,7 +13,7 @@ public class GameControl {
         notifyAll();
     }
 
-    public synchronized void waitIfPaused() throws InterruptedException {
+    public synchronized void awaitIfPaused() throws InterruptedException {
         while (paused && !stopped) {
             wait();
         }
