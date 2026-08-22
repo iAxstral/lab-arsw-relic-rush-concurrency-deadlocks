@@ -1,6 +1,7 @@
 package edu.eci.arsw.relicrush.game;
 
 import edu.eci.arsw.relicrush.concurrency.ForgeLedger;
+import edu.eci.arsw.relicrush.concurrency.GameControl;
 import edu.eci.arsw.relicrush.concurrency.LockPair;
 import edu.eci.arsw.relicrush.model.ForgeEvent;
 import edu.eci.arsw.relicrush.model.ForgeStation;
@@ -21,6 +22,7 @@ public final class Adventurer extends Thread {
     private final CyclicBarrier roundEnd;
     private final int rounds;
     private final SplittableRandom random;
+    private final GameControl control;
 
     private int score;
 
@@ -30,7 +32,8 @@ public final class Adventurer extends Thread {
             ForgeLedger ledger,
             CyclicBarrier roundStart,
             CyclicBarrier roundEnd,
-            int rounds) {
+            int rounds,
+            GameControl control) {
         super("adventurer-" + playerId);
         this.playerId = playerId;
         this.stations = stations;
@@ -38,6 +41,7 @@ public final class Adventurer extends Thread {
         this.roundStart = roundStart;
         this.roundEnd = roundEnd;
         this.rounds = rounds;
+        this.control = control;
         this.random = new SplittableRandom(1000L + playerId);
     }
 
@@ -53,6 +57,10 @@ public final class Adventurer extends Thread {
     public void run() {
         try {
             for (int round = 1; round <= rounds; round++) {
+                if (control.isStopped()) {
+                    return;
+                }
+                control.awaitIfPaused();
                 roundStart.await();
                 playTurn(round);
                 roundEnd.await();
@@ -60,7 +68,7 @@ public final class Adventurer extends Thread {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         } catch (BrokenBarrierException e) {
-            // The coordinator may break the barrier if the game is aborted.
+            // Coordinator broke the barrier because the game was stopped.
         }
     }
 
