@@ -426,3 +426,55 @@ coordination
 The objective is not merely to know `synchronized`.
 
 > **The objective is to design a concurrent solution whose correctness and liveness can be explained and demonstrated.**
+
+---
+
+# 20. Bonus - Graphical interface (GUI)
+
+A Swing control room lets you run and observe a match without reading console
+output.
+
+### Run it
+
+```bash
+mvn -q -DskipTests package
+java -cp target/classes edu.eci.arsw.relicrush.app.RelicRushGuiMain
+```
+
+Set the number of adventurers, stations and rounds, click **Start**, and use
+**Pause / Resume / Stop** to drive the match. The window shows, live:
+
+- every **Adventurer** and its current score, ranked;
+- every **Forge Station**, colored by whether it is currently locked (busy)
+  or free;
+- the **ledger** totals (`scoreSum`, `ledger.totalCrafted()`,
+  `ledger.eventCount()`) and the derived **invariant** (`OK` / `BROKEN`);
+- the current round and a scrolling round log.
+
+### Integration with the concurrent model
+
+The GUI is a pure observer: it does not add, remove or replace any lock,
+barrier or atomic used by the simulation.
+
+- **Start/Pause/Resume/Stop** call the existing `GameControl` API
+  (`pause()`, `resume()`, `stop()`) that `GameEngine` and `Adventurer`
+  already check between rounds - the same mechanism used by the console
+  version, just wired to buttons instead of being unused.
+- `GameEngine.run()` executes on its own background thread (never the Swing
+  Event Dispatch Thread), exactly as before; the barriers still coordinate
+  the adventurer threads.
+- The window refreshes on a `javax.swing.Timer` (150 ms, runs on the EDT)
+  that only **reads** state that was already safe to read from another
+  thread: `AtomicInteger`/`AtomicBoolean` getters on `ForgeLedger` and
+  `GameEngine`, and `ForgeStation.busy`, which is `volatile`.
+- `LockPair.withBoth` now also sets/clears that `busy` flag in a
+  `try/finally` around the same critical section it already had - the
+  deterministic lower-id-first acquisition order (the deadlock fix) is
+  unchanged; the flag is observability only, not part of the locking
+  strategy.
+- `Adventurer.score` was made `volatile` so the GUI's polling thread sees
+  up-to-date values; it is still written only by its owning thread.
+
+Run `DeadlockProbe` and `InvariantProbe` as usual (see sections 10 and 13) -
+they are unaffected by the GUI and confirm the prevention strategy and the
+invariant still hold.

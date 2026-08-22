@@ -24,7 +24,9 @@ public final class Adventurer extends Thread {
     private final SplittableRandom random;
     private final GameControl control;
 
-    private int score;
+    // volatile: read cross-thread by the GUI's polling timer, written only
+    // by this thread (as before) - no change to the update logic itself.
+    private volatile int score;
 
     public Adventurer(
             int playerId,
