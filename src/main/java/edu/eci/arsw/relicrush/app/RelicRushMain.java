@@ -3,7 +3,7 @@ package edu.eci.arsw.relicrush.app;
 import edu.eci.arsw.relicrush.game.GameConfig;
 import edu.eci.arsw.relicrush.game.GameEngine;
 
-public final class RelicRushMain {
+public final class      RelicRushMain {
     private RelicRushMain() {
     }
 
