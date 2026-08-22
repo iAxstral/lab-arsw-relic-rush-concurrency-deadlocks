@@ -15,13 +15,13 @@ first, no matter what order the caller passed them in.
 
 ```java
 public static void withBoth(ForgeStation a, ForgeStation b, Runnable action) {
-    ForgeStation first = a.id() < b.id() ? a : b;
-    ForgeStation second = a.id() < b.id() ? b : a;
-    synchronized (first) {
-        synchronized (second) {
-            action.run();
-        }
+  ForgeStation first = a.id() < b.id() ? a : b;
+  ForgeStation second = a.id() < b.id() ? b : a;
+  synchronized (first) {
+    synchronized (second) {
+      action.run();
     }
+  }
 }
 ```
 
