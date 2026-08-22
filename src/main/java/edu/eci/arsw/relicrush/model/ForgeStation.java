@@ -6,6 +6,7 @@ package edu.eci.arsw.relicrush.model;
 public final class ForgeStation {
     private final int id;
     private final String name;
+    private volatile boolean busy;
 
     public ForgeStation(int id, String name) {
         this.id = id;
@@ -23,5 +24,13 @@ public final class ForgeStation {
     @Override
     public String toString() {
         return name + "(#" + id + ")";
+    }
+
+    public void setBusy(boolean busy) {
+        this.busy = busy;
+    }
+
+    public boolean isBusy() {
+        return busy;
     }
 }
